@@ -1,0 +1,22 @@
+[project]
+name = "verora"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "chromadb>=1.5.9",
+    "faster-whisper>=1.2.1",
+    "langchain-ollama>=1.1.0",
+    "langgraph>=1.2.11",
+    "ollama>=0.6.2",
+    "paddleocr[doc-parser]>=3.7.0",
+    "paddlepaddle==3.2.1",
+    "piper-tts>=1.8.0",
+]
+
+[[tool.uv.index]]
+url = "https://pypi.org/simple"
+
+[[tool.uv.index]]
+url = "https://www.paddlepaddle.org.cn/packages/stable/cpu/"
