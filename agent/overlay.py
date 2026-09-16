@@ -6,6 +6,10 @@ from PyQt6.QtGui import (
     QPainter, QColor, QRadialGradient, QLinearGradient,
     QPainterPath, QFont, QPen, QBrush
 )
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from state_store.state import store
 
 
 # ──────────────────────────────────────────────
@@ -160,8 +164,38 @@ class VeroraOverlay(QWidget):
         self._listening = True
         self._user_name = "Kairo"
         self._transcript = ""
-        self._drag_pos = None      # QPoint while dragging, else None
+        self._drag_pos = None
         self.init_ui()
+    
+    # --- NEW: Poll the state store every 500ms ---
+        self._poll_timer = QTimer(self)
+        self._poll_timer.timeout.connect(self._poll_state)
+        self._poll_timer.start(500)
+
+    def _poll_state(self):
+        s = store.get_all()
+        cpu = s.get("system_cpu", 0)
+        ram = s.get("system_ram", 0)
+        gpu = s.get("system_gpu_util", "N/A")
+        loss = s.get("metric_loss", None)
+        acc = s.get("metric_accuracy", None)
+        file = s.get("last_modified_file", "None")
+        
+        # Start formatting the live telemetry (always show system stats)
+        telemetry = (
+            f"<b>CPU:</b> {cpu}% | <b>RAM:</b> {ram}%<br>"
+            f"<b>GPU:</b> {gpu}<br>"
+        )
+        
+        # Only add the ML metrics line if they actually exist
+        if loss is not None and acc is not None:
+            telemetry += f"<b>Loss:</b> {loss} | <b>Acc:</b> {acc}<br>"
+            
+        # Always show the last modified file at the bottom
+        telemetry += f"<b>Last File:</b> {file}"
+        
+        # Update the UI
+        self.transcript_label.setText(f'<div style="text-align:center;">{telemetry}</div>')
 
     # ── background paint ─────────────────────
 
