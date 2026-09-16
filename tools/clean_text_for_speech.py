@@ -8,9 +8,9 @@ def clean_text_for_speech(text: str) -> str:
     # Strip emoji and symbol characters entirely
     emoji_pattern = re.compile(
         "["
-        "\U0001F300-\U0001FAFF"  # symbols & pictographs, emoticons, transport, etc.
-        "\U00002600-\U000027BF"  # misc symbols, dingbats (includes ✅ ❌ ⚠️)
-        "\U0001F1E6-\U0001F1FF"  # flags
+        "\U0001F300-\U0001FAFF" 
+        "\U00002600-\U000027BF" 
+        "\U0001F1E6-\U0001F1FF" 
         "]+", flags=re.UNICODE
     )
     text = emoji_pattern.sub('', text)
