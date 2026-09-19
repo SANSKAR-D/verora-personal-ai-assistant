@@ -2,6 +2,7 @@ import sys
 import math
 from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout
 from PyQt6.QtCore import Qt, QTimer, QPointF, QRectF
+from PyQt6.QtCore import Qt, QTimer, QObject, pyqtSignal
 from PyQt6.QtGui import (
     QPainter, QColor, QRadialGradient, QLinearGradient,
     QPainterPath, QFont, QPen, QBrush
@@ -11,6 +12,11 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from state_store.state import store
 
+class OverlaySignals(QObject):
+    show_signal = pyqtSignal()
+    hide_signal = pyqtSignal()
+    update_signal = pyqtSignal(str)
+signals = OverlaySignals()
 
 # ──────────────────────────────────────────────
 #  Particle-stream Orb Widget
@@ -161,16 +167,21 @@ class VeroraOverlay(QWidget):
 
     def __init__(self):
         super().__init__()
-        self._listening = True
-        self._user_name = "Kairo"
-        self._transcript = ""
-        self._drag_pos = None
         self.init_ui()
     
     # --- NEW: Poll the state store every 500ms ---
         self._poll_timer = QTimer(self)
         self._poll_timer.timeout.connect(self._poll_state)
         self._poll_timer.start(500)
+
+        self.hide()
+
+    def show_overlay(self):
+        self.show()
+        self.raise_()
+        
+    def hide_overlay(self):
+        self.hide()
 
     def _poll_state(self):
         s = store.get_all()
@@ -181,21 +192,22 @@ class VeroraOverlay(QWidget):
         acc = s.get("metric_accuracy", None)
         file = s.get("last_modified_file", "None")
         
-        # Start formatting the live telemetry (always show system stats)
-        telemetry = (
-            f"<b>CPU:</b> {cpu}% | <b>RAM:</b> {ram}%<br>"
-            f"<b>GPU:</b> {gpu}<br>"
-        )
-        
-        # Only add the ML metrics line if they actually exist
+        telemetry = f"CPU: {cpu}% | RAM: {ram}% | GPU: {gpu}<br>"
         if loss is not None and acc is not None:
-            telemetry += f"<b>Loss:</b> {loss} | <b>Acc:</b> {acc}<br>"
-            
-        # Always show the last modified file at the bottom
-        telemetry += f"<b>Last File:</b> {file}"
+            telemetry += f"Loss: {loss} | Acc: {acc}<br>"
+        telemetry += f"Last File: {file}"
         
-        # Update the UI
-        self.transcript_label.setText(f'<div style="text-align:center;">{telemetry}</div>')
+        # Send telemetry to the tiny bottom label instead of the transcript label
+        self.telemetry_label.setText(f'<div style="text-align:center;">{telemetry}</div>')
+
+    def handle_voice_update(self, text: str):
+        if text in ["Listening...", "Speaking..."]:
+            self.status_label.setText(text)
+        elif text == "":
+            self.status_label.setText("Waiting...")
+            self.transcript_label.setText("")
+        else:
+            self.transcript_label.setText(f'<div style="text-align:center;">{text}</div>')
 
     # ── background paint ─────────────────────
 
@@ -282,7 +294,7 @@ class VeroraOverlay(QWidget):
 
         outer.addSpacing(18)
 
-        # ── Bottom: transcript / conversation ──
+        # ── Middle: transcript / conversation ──
         self.transcript_label = QLabel("")
         self.transcript_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.transcript_label.setWordWrap(True)
@@ -296,6 +308,16 @@ class VeroraOverlay(QWidget):
         outer.addWidget(self.transcript_label)
 
         outer.addStretch()
+
+        # ── Bottom: Telemetry ──
+        self.telemetry_label = QLabel("")
+        self.telemetry_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.telemetry_label.setStyleSheet("""
+            color: rgba(150, 150, 180, 150);
+            font-size: 10px;
+            font-family: 'Segoe UI', sans-serif;
+        """)
+        outer.addWidget(self.telemetry_label)
 
     # ── Public API ───────────────────────────
 

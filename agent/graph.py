@@ -4,11 +4,12 @@ from tools.read_file import read_file
 from tools.tail_log import tail_log
 from tools.search_codebase import search_codebase
 from tools.capture_and_read_screen import capture_and_read_screen
+from tools.close_overlay import close_overlay
 llm = ChatOllama(model="qwen3.5-verora")
 
 agent = create_react_agent(
     model=llm,
-    tools=[read_file, tail_log, search_codebase,capture_and_read_screen]
+    tools=[read_file, tail_log, search_codebase,capture_and_read_screen, close_overlay]
 )
 
 
