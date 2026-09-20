@@ -67,7 +67,7 @@ def listen_for_wake_word():
         audio = np.frombuffer(indata, dtype=np.int16)
         prediction = oww_model.predict(audio)
         for wakeword, score in prediction.items():
-            if score > 0.5:
+            if score > 0.3:
                 oww_model.reset()
                 is_busy = True # Lock it so it doesn't double-trigger
                 

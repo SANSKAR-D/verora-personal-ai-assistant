@@ -2,8 +2,8 @@ import re
 
 def clean_text_for_speech(text: str) -> str:
     """Strips markdown and symbols that shouldn't be spoken aloud."""
-    # Fix broken surrogate pairs from streaming first
-    text = text.encode('utf-8', errors='ignore').decode('utf-8')
+    # Fix broken surrogate pairs (like emojis) that crash the TTS engine
+    text = "".join(c for c in text if not (0xD800 <= ord(c) <= 0xDFFF))
 
     # Strip emoji and symbol characters entirely
     emoji_pattern = re.compile(

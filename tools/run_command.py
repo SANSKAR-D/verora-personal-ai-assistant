@@ -3,6 +3,10 @@ from agent.confirmation import confirm_action
 
 def run_command(command: str) -> str:
     """Executes a shell command, with user confirmation first."""
+    forbidden_terms = ["http://", "https://", "www.", "xdg-open", "google-chrome", "firefox", "msedge"]
+    if any(term in command.lower() for term in forbidden_terms):
+        return "ERROR: You are strictly forbidden from using run_command to open websites or browsers. You MUST use the `automate_browser` tool!"
+        
     if not confirm_action(f"Run command: {command}"):
         return "Command cancelled by user."
 

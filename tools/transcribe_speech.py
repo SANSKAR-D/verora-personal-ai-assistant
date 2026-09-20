@@ -17,6 +17,7 @@ def record_audio(duration=5, samplerate=16000, filename="input.wav"):
 
 def transcribe_speech(duration=5) -> str:
     audio_path = record_audio(duration=duration)
+    # Force language="en" so it stops randomly switching to Hindi text
     segments, _ = model.transcribe(audio_path, language="en")
     text = " ".join(segment.text for segment in segments)
     return text.strip()
