@@ -48,7 +48,8 @@ def start_system_monitor(interval_seconds=2):
             gpu_str = f"{gpu_stats['util_percent']}% Util, {gpu_stats['mem_used_mb']}MB/{gpu_stats['mem_total_mb']}MB"
             store.update("system_gpu_util", gpu_str)
         
-        print(f"[SystemMonitor] CPU: {cpu_percent}%, RAM: {ram_percent}%, GPU: {store.get('system_gpu_util')}")
+        if not store.get("is_confirming"):
+            print(f"[SystemMonitor] CPU: {cpu_percent}%, RAM: {ram_percent}%, GPU: {store.get('system_gpu_util')}")
         
         time.sleep(interval_seconds)
 

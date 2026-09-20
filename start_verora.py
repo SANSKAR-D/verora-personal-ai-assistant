@@ -30,7 +30,7 @@ if __name__ == "__main__":
     # 4. Start the wake word listener in the background
     print("\n--- All Systems Go! ---")
     print("Holographic UI is hidden in the background.")
-    print("Say 'Hey Jarvis' to wake Verora up!\n")
+    print("Say 'Hey Verora' to wake Verora up!\n")
     start_wake_word_listener()
     
     # 5. Start the PyQt main event loop (this blocks forever until the app closes)
