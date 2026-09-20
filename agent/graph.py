@@ -12,6 +12,8 @@ from tools.capture_and_read_screen import capture_and_read_screen
 from tools.close_overlay import close_overlay
 from tools.open_app import open_app
 from tools.run_command import run_command
+from tools.send_message import send_message
+from tools.write_code_file import write_code_file
 
 class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
@@ -20,7 +22,7 @@ llm = ChatOllama(model="qwen3.5-verora")
 
 # --- TOOLS ---
 READ_ONLY_TOOLS = [read_file, tail_log, search_codebase, capture_and_read_screen, close_overlay,open_app]
-CONFIRMATION_TOOLS = [run_command]
+CONFIRMATION_TOOLS = [run_command, send_message, write_code_file]
 
 all_tools = READ_ONLY_TOOLS + CONFIRMATION_TOOLS
 llm_with_tools = llm.bind_tools(all_tools)
