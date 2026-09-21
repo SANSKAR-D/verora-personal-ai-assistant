@@ -1,69 +1,105 @@
 import os
-import time
 from dotenv import load_dotenv
-from playwright.sync_api import sync_playwright
+from agent.confirmation import confirm_action
+from tools.pinchtab_manager import get_instance_id, set_tab_id, api_post, api_get
 
 load_dotenv()
 
-# Global variables to keep the browser open!
-_p = None
-_browser = None
+def get_credentials(site_name: str):
+    """Pulls username/password from environment variables, e.g. GITHUB_USERNAME / GITHUB_PASSWORD."""
+    prefix = site_name.upper()
+    username = os.environ.get(f"{prefix}_USERNAME")
+    password = os.environ.get(f"{prefix}_PASSWORD")
+    return username, password
 
-def get_browser():
-    global _p, _browser
-    if _p is None:
-        _p = sync_playwright().start()
-    if _browser is None or not _browser.is_connected():
-        _browser = _p.chromium.launch(headless=False, slow_mo=50)
-    return _browser
 
 def login_to_site(login_url: str, site_name: str) -> str:
+    """Logs into ANY website using credentials stored securely in environment variables.
+    It automatically discovers the username and password fields using PinchTab snapshots.
+
+    Use this when the user asks to log into, sign into, or authenticate with a specific site.
+
+    This action requires explicit user confirmation before it executes.
+
+    Args:
+        login_url: The direct URL to the site's login page (e.g. 'https://github.com/login').
+        site_name: The name of the site (used to find credentials in .env, e.g. 'github').
+
+    Returns:
+        A message confirming the login attempt, or an error if credentials are missing.
     """
-    Logs into ANY website by automatically finding the username/password boxes!
-    Example: login_to_site("https://github.com/login", "GITHUB")
-    """
-    
-    env_var_user = f"{site_name.upper()}_USERNAME"
-    env_var_pass = f"{site_name.upper()}_PASSWORD"
-    
-    username = os.getenv(env_var_user)
-    password = os.getenv(env_var_pass)
-    
+    username, password = get_credentials(site_name)
     if not username or not password:
-        return f"No stored credentials for {site_name} in .env file (looked for {env_var_user} and {env_var_pass})"
+        return f"No credentials found in .env for {site_name} (expected {site_name.upper()}_USERNAME / {site_name.upper()}_PASSWORD)"
+
+    if not confirm_action(f"Log into {site_name} at {login_url} as {username}?"):
+        return "Login cancelled by user."
 
     try:
-        browser = get_browser()
-        page = browser.new_page()
-            
-        # Go to the requested login URL
-        page.goto(login_url)
+        instance_id = get_instance_id()
+
+        # Open the login page
+        resp = api_post(
+            f"/instances/{instance_id}/tabs/open",
+            {"url": login_url},
+        )
+        tab_id = resp.get("tabId") or resp.get("id")
+        if not tab_id:
+            return f"Failed to open login page. Response: {resp}"
+
+        set_tab_id(tab_id)
+
+        # Use snapshot to auto-discover fields
+        # Note: PinchTab API returns {"count": N, "nodes": [...]}
+        snapshot_data = api_get(f"/tabs/{tab_id}/snapshot", params={"filter": "interactive"})
         
-        # 1. Smart Search for Username Box
-        # Looks for any input box meant for emails, usernames, or logins
-        username_box = page.locator("input[type='email'], input[name*='user'], input[name*='email'], input[name*='login'], input[id*='user'], input[id*='email'], input[id*='login'], input[type='text']").first
-        try:
-            username_box.fill(username, timeout=5000)
-        except:
-            return "Could not find the username box within 5 seconds! The site might be loading too slowly or uses a non-standard login form."
-            
-        # 2. Smart Search for Password Box
-        password_box = page.locator("input[type='password']").first
-        try:
-            password_box.fill(password, timeout=5000)
-        except:
-            return "Could not automatically find the password box."
-            
-        # 3. Smart Search for Login Button
-        submit_button = page.locator("button[type='submit'], input[type='submit'], button:has-text('Log in'), button:has-text('Sign in'), button:has-text('Login')").first
-        try:
-            submit_button.click(timeout=3000)
-        except:
-            # If it can't find the button, just press Enter on the password!
-            password_box.press("Enter")
-            
-        # We no longer close the browser! It stays open for you!
-        return f"Successfully opened browser and attempted login for {site_name}!"
-                
+        nodes = []
+        if isinstance(snapshot_data, dict) and "nodes" in snapshot_data:
+            nodes = snapshot_data["nodes"]
+        elif isinstance(snapshot_data, list):
+            nodes = snapshot_data
+
+        if nodes:
+            username_ref = None
+            password_ref = None
+            submit_ref = None
+
+            for elem in nodes:
+                role = elem.get("role", "").lower()
+                name = (elem.get("name", "") or elem.get("text", "")).lower()
+                ref = elem.get("ref", "")
+
+                if role in ["textbox", "searchbox", "email"] and not username_ref:
+                    if any(kw in name for kw in ["user", "email", "login", "username"]):
+                        username_ref = ref
+                    elif not username_ref:
+                        username_ref = ref  # First textbox as fallback
+
+                if role == "textbox" and "password" in name:
+                    password_ref = ref
+
+                if role == "button" and any(kw in name for kw in ["sign in", "log in", "login", "submit", "continue"]):
+                    submit_ref = ref
+
+            if username_ref:
+                api_post(f"/tabs/{tab_id}/action", {"kind": "fill", "ref": username_ref, "value": username})
+            else:
+                return "Could not find username field on the login page."
+
+            if password_ref:
+                api_post(f"/tabs/{tab_id}/action", {"kind": "fill", "ref": password_ref, "value": password})
+            else:
+                return "Could not find password field on the login page."
+
+            if submit_ref:
+                api_post(f"/tabs/{tab_id}/action", {"kind": "click", "ref": submit_ref})
+            else:
+                # Fallback: press Enter on the password field
+                api_post(f"/tabs/{tab_id}/action", {"kind": "press", "ref": password_ref, "key": "Enter"})
+
+            return f"Login attempt to {site_name} completed using auto-discovered refs."
+
+        return f"Could not read login page snapshot. Response: {snapshot_data}"
+
     except Exception as e:
-        return f"Failed to log in using Playwright: {e}"
+        return f"Failed to log in: {e}"

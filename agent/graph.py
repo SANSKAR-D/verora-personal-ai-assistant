@@ -17,8 +17,11 @@ from tools.write_code_file import write_code_file
 from tools.login_to_site import login_to_site
 from tools.update_scratchpad import update_scratchpad
 from tools.update_memory import update_memory
-from tools.automate_browser import automate_browser
-from tools.play_youtube import play_youtube
+
+# PinchTab browser tools (replaces Playwright)
+from tools.open_browser_tab import open_browser_tab
+from tools.get_page_snapshot import get_page_snapshot
+from tools.browser_action import browser_action
 
 
 
@@ -28,8 +31,14 @@ class AgentState(TypedDict):
 llm = ChatOllama(model="qwen3.5-verora")
 
 # --- TOOLS ---
-READ_ONLY_TOOLS = [read_file, tail_log, play_youtube,search_codebase, capture_and_read_screen, close_overlay,open_app, automate_browser, update_memory, update_scratchpad]
-CONFIRMATION_TOOLS = [run_command, send_message, write_code_file, login_to_site]
+#capture_and_read_screen,run_command
+READ_ONLY_TOOLS = [
+    read_file, tail_log, search_codebase, close_overlay, open_app,
+    update_memory, update_scratchpad,capture_and_read_screen,
+    # PinchTab browser tools — no confirmation needed for these
+    open_browser_tab, get_page_snapshot, browser_action,
+]
+CONFIRMATION_TOOLS = [send_message, write_code_file, login_to_site,run_command]
 
 all_tools = READ_ONLY_TOOLS + CONFIRMATION_TOOLS
 llm_with_tools = llm.bind_tools(all_tools)
@@ -82,44 +91,53 @@ def ask_with_pruning(question: str, history: list = None, max_history: int = 10)
         current_scratchpad = "No current tasks."
         
     system_instruction = (
-        "You are Verora, a highly capable AI assistant. You MUST process all input as English, and you MUST ONLY reply in English. Never use Hindi.\n\n"
+        "You are Verora, a highly capable AI assistant running on WINDOWS (not Linux). You MUST process all input as English, and you MUST ONLY reply in English. Never use Hindi.\n"
+        "You run on Windows — NEVER use Linux commands (grep, fuser, env, cat, ls). Use Windows equivalents (findstr, tasklist, set, dir, type).\n\n"
+
         "==================================================\n"
-        "CRITICAL TOOL USAGE GUIDELINES & EXAMPLES\n"
+        "BROWSER AUTOMATION (PinchTab — 3-step workflow)\n"
         "==================================================\n"
-        "You have several tools. YOU MUST USE THEM CORRECTLY based on the task:\n\n"
-        
-        "1. WEB BROWSING & AUTOMATION (automate_browser)\n"
-        "If the user asks you to search Wikipedia, Google something, or browse ANY website, you MUST use the `automate_browser` tool.\n"
-        "DO NOT use `run_command` (like xdg-open or google-chrome) to open URLs. You are strictly forbidden from doing that.\n"
-        "The `automate_browser` tool requires two arguments: `url` and a list of `actions`.\n"
-        "Example 1: Searching Wikipedia\n"
-        "  - url: 'https://en.wikipedia.org'\n"
-        "  - actions: [\n"
-        "      {\"type\": \"type\", \"selector\": \"input[type='search']\", \"text\": \"Python programming\"},\n"
-        "      {\"type\": \"press\", \"selector\": \"input[type='search']\", \"key\": \"Enter\"}\n"
-        "    ]\n"
-        "Example 2: Searching Google\n"
-        "  - url: 'https://www.google.com'\n"
-        "  - actions: [\n"
-        "      {\"type\": \"type\", \"selector\": \"textarea[name='q']\", \"text\": \"Weather today\"},\n"
-        "      {\"type\": \"press\", \"selector\": \"textarea[name='q']\", \"key\": \"Enter\"}\n"
-        "    ]\n"
-        "Example 3: Just opening a webpage (no actions needed)\n"
-        "  - url: 'https://en.wikipedia.org/wiki/Python_(programming_language)'\n"
-        "  - actions: []\n"
-        "Example 4: Interacting with the ALREADY OPEN webpage (e.g. clicking 'Donate' on Wikipedia)\n"
-        "  - url: ''\n"
-        "  - actions: [\n"
-        "      {\"type\": \"click\", \"selector\": \"a:has-text('Donate')\"}\n"
-        "    ]\n\n"
-        
-        "2. YOUTUBE MUSIC (play_youtube)\n"
-        "If the user asks to play a song on YouTube, strictly use the `play_youtube` tool with the song name.\n\n"
-        
-        "3. RUNNING COMMANDS (run_command)\n"
-        "Use `run_command` strictly for terminal/bash commands like 'dir', 'mkdir', 'taskkill'.\n"
-        "NEVER use run_command for opening web browsers or URLs.\n\n"
-        
+        "For ANY web browsing task (Wikipedia, Google, any website), you MUST follow this exact 3-step pattern:\n\n"
+
+        "STEP 1: Call open_browser_tab(url) to navigate to the page.\n"
+        "  Example: open_browser_tab(url='https://en.wikipedia.org')\n\n"
+
+        "STEP 2: Call get_page_snapshot() to see what elements exist on the page.\n"
+        "  This returns a list of interactive elements with stable refs like:\n"
+        "    e1:search \"Search Wikipedia\"\n"
+        "    e7:link \"Donate\"\n"
+        "    e9:link \"Log in\"\n\n"
+
+        "STEP 3: Call browser_action(ref, action_type, value) to interact with a specific element.\n"
+        "  Examples:\n"
+        "    browser_action(ref='e1', action_type='fill', value='Dragon')\n"
+        "    browser_action(ref='e2', action_type='click')\n"
+        "    browser_action(ref='e1', action_type='press', value='Enter')\n\n"
+
+        "CRITICAL RULES:\n"
+        "- NEVER guess a ref. ALWAYS call get_page_snapshot first to see the real refs.\n"
+        "- NEVER use run_command to open websites (like xdg-open or google-chrome). You are FORBIDDEN.\n"
+        "- NEVER use open_app for websites. open_app is ONLY for native desktop apps like notepad.\n"
+        "- If the page changes after an action (e.g. after clicking a link), call get_page_snapshot again to see the new elements.\n"
+        "- To interact with an ALREADY OPEN page, just call get_page_snapshot() (no need for open_browser_tab).\n\n"
+
+        "FULL EXAMPLE — Searching Wikipedia for 'Dragon':\n"
+        "  1. open_browser_tab(url='https://en.wikipedia.org')\n"
+        "  2. get_page_snapshot()  →  sees e1:search \"Search Wikipedia\"\n"
+        "  3. browser_action(ref='e1', action_type='fill', value='Dragon')\n"
+        "  4. browser_action(ref='e1', action_type='press', value='Enter')\n\n"
+
+        "==================================================\n"
+        "OTHER TOOL GUIDELINES\n"
+        "==================================================\n"
+        "- To play a song on YouTube: use play_youtube(song_name)\n"
+        "- To run terminal commands (dir, mkdir, taskkill): use run_command. NEVER for URLs.\n"
+        "- To open native apps (notepad, calc): use open_app. NEVER for websites.\n"
+        "- To log into a site: use login_to_site(login_url, site_name)\n"
+        "  Example: login_to_site(login_url='https://github.com/login', site_name='github')\n"
+        "- To save important facts permanently: use update_memory(fact)\n"
+        "- To track your current task progress: use update_scratchpad(status)\n\n"
+
         "==================================================\n"
         "PERMANENT LONG-TERM MEMORY\n"
         "==================================================\n"
@@ -132,7 +150,7 @@ def ask_with_pruning(question: str, history: list = None, max_history: int = 10)
         f"{current_scratchpad}"
     )
     
-    # Inject a strict System Prompt forcing her to only process and speak in English, plus her memory!
+    # Inject the system prompt with memory and task scratchpad
     system_prompt = {"role": "system", "content": system_instruction}
     messages = [system_prompt] + trimmed_history + [{"role": "user", "content": question}]
     
