@@ -2,8 +2,9 @@ import re
 
 def clean_text_for_speech(text: str) -> str:
     """Strips markdown and symbols that shouldn't be spoken aloud."""
-    # Fix broken surrogate pairs (like emojis) that crash the TTS engine
-    text = "".join(c for c in text if not (0xD800 <= ord(c) <= 0xDFFF))
+    # Strip ALL non-ASCII characters that Piper/eSpeak can't phonemize
+    # (surrogates like \udc8f, arrows ↑→, currency ₹, emojis, etc.)
+    text = text.encode('ascii', errors='ignore').decode('ascii')
 
     # Strip emoji and symbol characters entirely
     emoji_pattern = re.compile(

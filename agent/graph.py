@@ -22,6 +22,11 @@ from tools.update_memory import update_memory
 from tools.open_browser_tab import open_browser_tab
 from tools.get_page_snapshot import get_page_snapshot
 from tools.browser_action import browser_action
+from tools.web_search import web_search
+from tools.crawl_page import crawl_page
+from tools.extract_from_page import extract_from_page
+from tools.crawl_docs import crawl_docs
+
 
 
 
@@ -35,10 +40,11 @@ llm = ChatOllama(model="qwen3.5-verora")
 READ_ONLY_TOOLS = [
     read_file, tail_log, search_codebase, close_overlay, open_app,
     update_memory, update_scratchpad,capture_and_read_screen,
+    web_search, crawl_page, extract_from_page,
     # PinchTab browser tools — no confirmation needed for these
-    open_browser_tab, get_page_snapshot, browser_action,
+    open_browser_tab, get_page_snapshot, browser_action
 ]
-CONFIRMATION_TOOLS = [send_message, write_code_file, login_to_site,run_command]
+CONFIRMATION_TOOLS = [send_message, write_code_file, login_to_site,run_command,crawl_docs]
 
 all_tools = READ_ONLY_TOOLS + CONFIRMATION_TOOLS
 llm_with_tools = llm.bind_tools(all_tools)
@@ -128,9 +134,23 @@ def ask_with_pruning(question: str, history: list = None, max_history: int = 10)
         "  4. browser_action(ref='e1', action_type='press', value='Enter')\n\n"
 
         "==================================================\n"
+        "WEB SEARCH & PAGE READING\n"
+        "==================================================\n"
+        "When you need up-to-date information or facts from the internet, use these tools IN THIS ORDER OF PREFERENCE:\n\n"
+        "1. web_search(query) — Search the live web. Use this FIRST for any question needing current info.\n"
+        "   Example: web_search(query='latest Python version 2026')\n\n"
+        "2. crawl_page(url) — Fetch and read a specific URL. Use this to read articles, docs, or pages.\n"
+        "   Example: crawl_page(url='https://pytorch.org/docs/stable/torch.compile.html')\n\n"
+        "3. extract_from_page(url, question) — Use the LLM to extract a SPECIFIC answer from a URL.\n"
+        "   Only use this when crawl_page returns too much text or too little useful content.\n"
+        "   Example: extract_from_page(url='https://docs.python.org/3/whatsnew.html', question='What is new in Python 3.13?')\n\n"
+        "4. crawl_docs(urls, question) — Extract answers spanning MULTIPLE pages. Requires confirmation.\n\n"
+        "CRITICAL: Do NOT answer questions about current events, versions, or live data from memory alone.\n"
+        "          ALWAYS use web_search or crawl_page to ground your answer in real, fresh data.\n\n"
+
+        "==================================================\n"
         "OTHER TOOL GUIDELINES\n"
         "==================================================\n"
-        "- To play a song on YouTube: use play_youtube(song_name)\n"
         "- To run terminal commands (dir, mkdir, taskkill): use run_command. NEVER for URLs.\n"
         "- To open native apps (notepad, calc): use open_app. NEVER for websites.\n"
         "- To log into a site: use login_to_site(login_url, site_name)\n"

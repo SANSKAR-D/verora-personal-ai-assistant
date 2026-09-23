@@ -10,6 +10,7 @@ from tools.speak import speak
 from agent.graph import ask_with_pruning
 
 oww_model = Model(
+    # wakeword_models=["hey_jarvis"],
     wakeword_models=["./models/hey_verora.onnx"],
     inference_framework="onnx"
 ) 
@@ -67,7 +68,7 @@ def listen_for_wake_word():
         audio = np.frombuffer(indata, dtype=np.int16)
         prediction = oww_model.predict(audio)
         for wakeword, score in prediction.items():
-            if score > 0.05:
+            if score > 0.03:
                 oww_model.reset()
                 is_busy = True # Lock it so it doesn't double-trigger
                 

@@ -1,12 +1,13 @@
 # Verora - Personal AI Assistant
 
-Verora is a powerful, voice-activated personal AI assistant with a beautiful holographic overlay UI. Running entirely locally on your Windows machine via Ollama, she is capable of actively listening to you, speaking back naturally, remembering facts across sessions, taking notes, and seamlessly controlling your browser via PinchTab.
+Verora is a powerful, voice-activated personal AI assistant with a beautiful holographic overlay UI. Running entirely locally on your Windows machine via Ollama, she is capable of actively listening to you, speaking back naturally, remembering facts across sessions, taking notes, searching the web, and seamlessly controlling your browser via PinchTab.
 
 ## ✨ Features
 
 - **Holographic Orb UI**: A stunning, draggable, glowing PyQt6 interface that runs transparently over your desktop and displays real-time system telemetry and speech transcripts.
 - **Local Wake-Word Detection**: Uses `openwakeword` with a custom `hey_verora.onnx` model to constantly listen for her name in the background using minimal CPU.
 - **Local LLM Intelligence**: Powered by Ollama (`qwen3.5-verora`), ensuring your conversations and data stay completely private.
+- **Web Search & Scraping**: Searches the live internet via Tavily, reads static pages with BeautifulSoup, and performs targeted LLM-powered extraction via ScrapeGraphAI — all from voice commands.
 - **Dynamic Browser Automation**: Fully integrated with **PinchTab**. Verora can dynamically navigate to any website, visually scan the layout to auto-discover text fields and buttons, and interact with the page (e.g. logging in, searching) without fragile hard-coded selectors.
 - **Background Watchers**: Includes a suite of real-time background monitors (System metrics, File modification watcher, Clipboard watcher) that inject live system context directly into Verora's AI state.
 - **Permanent Memory**: Maintains a `long_term_memory.txt` that she updates to remember important facts about you forever.
@@ -21,17 +22,40 @@ Verora is a powerful, voice-activated personal AI assistant with a beautiful hol
 - **PinchTab** installed globally for browser automation.
 
 ### 2. Environment Variables
-Create a `.env` file in the root directory. You can add site credentials here for Verora's auto-login feature:
+Create a `.env` file in the root directory:
 ```env
 PINCHTAB_TOKEN=your_pinchtab_token_here
+TAVILY_API_KEY=your_tavily_api_key_here
 GITHUB_USERNAME=your_username
 GITHUB_PASSWORD=your_password
 ```
+- Get your free Tavily API key at [tavily.com](https://tavily.com/).
+- Get your PinchTab token from `pinchtab server` output.
 
 ### 3. Installation
 Install the project dependencies using `uv`:
 ```powershell
 uv sync
+```
+
+### 4. Patch ScrapeGraphAI (Required)
+ScrapeGraphAI v1.76.0 has a known incompatibility with the latest `langchain-community`. Run this patch after installing:
+```powershell
+Get-ChildItem -Recurse -Filter "*.py" ".venv\Lib\site-packages\scrapegraphai" | ForEach-Object {
+    $content = Get-Content $_.FullName -Raw -Encoding utf8
+    if ($content -match 'from langchain_community\.chat_models import ChatOllama') {
+        $newContent = $content -replace 'from langchain_community\.chat_models import ChatOllama', 'from langchain_ollama import ChatOllama'
+        Set-Content $_.FullName -Value $newContent -Encoding utf8 -NoNewline
+        Write-Output "Patched: $($_.Name)"
+    }
+}
+```
+> **Note:** You must re-run this patch every time you reinstall or update `scrapegraphai`.
+
+### 5. Disable ScrapeGraphAI Telemetry (Optional)
+To prevent ScrapeGraphAI from sending anonymous usage data:
+```powershell
+$env:SCRAPEGRAPHAI_TELEMETRY_ENABLED = "false"
 ```
 
 ## 🎮 Usage
@@ -43,19 +67,20 @@ pinchtab server
 ```
 
 ### Start Verora
-In a new terminal, launch the Verora agent:
+In a **new** terminal, launch the Verora agent:
 ```powershell
 uv run start_verora.py
 ```
-*Note: This will launch all background watchers, initialize the holographic UI, and begin listening for the wake word.*
+*This will launch all background watchers, initialize the holographic UI, and begin listening for the wake word.*
 
 ### Talk to Verora
 1. Say **"Hey Verora"**.
 2. The Holographic Orb will light up and say *Listening...*
 3. Ask her to do something! Try:
-   - *"Hey Verora, search Wikipedia for Dragon."*
+   - *"Hey Verora, search the web for the latest Python version."*
    - *"Hey Verora, open Amazon and search for a laptop."*
    - *"Hey Verora, remember that my favorite color is blue."*
+   - *"Hey Verora, read the PyTorch docs and tell me about torch.compile."*
    - *"Hey Verora, open Notepad."*
 
 ## 📁 Architecture
@@ -64,6 +89,57 @@ uv run start_verora.py
   - `graph.py`: LangChain setup, system prompts, and tool bindings.
   - `wake_word.py`: Microphone stream processing using `openwakeword`.
   - `overlay.py`: The beautiful PyQt6 holographic UI implementation.
-- `tools/`: The capabilities Verora has access to (PinchTab navigation, memory updating, app opening).
+- `tools/`: The capabilities Verora has access to.
+  - `web_search.py`: Live web search via Tavily API.
+  - `crawl_page.py`: Fast static page scraping via BeautifulSoup.
+  - `extract_from_page.py`: Targeted LLM-powered extraction via ScrapeGraphAI.
+  - `crawl_docs.py`: Multi-page documentation crawling.
+  - `open_browser_tab.py`, `get_page_snapshot.py`, `browser_action.py`: PinchTab browser automation.
+  - `login_to_site.py`: Dynamic website login (auto-discovers form fields).
+  - `update_memory.py`, `update_scratchpad.py`: Persistent memory and task tracking.
 - `watchers/`: Background threads that monitor your PC's CPU/RAM, file changes, and clipboard.
 - `state_store/`: A thread-safe global dictionary that bridges data between the background watchers and the UI.
+- `models/`: Custom wake-word ONNX model (`hey_verora.onnx`).
+
+## 🔧 Troubleshooting
+
+### `ImportError: cannot import name 'ChatOllama' from 'langchain_community.chat_models'`
+**Cause:** ScrapeGraphAI v1.76.0 still references a deprecated import path that was removed in the latest `langchain-community`.  
+**Fix:** Run the patch command from **Step 4** of the installation guide above. You need to re-run this patch after every `uv sync` or `uv add scrapegraphai`.
+
+### `UnicodeEncodeError: 'charmap' codec can't encode character...`
+**Cause:** The Windows terminal uses `cp1252` encoding by default, which cannot display special characters like `₹`, `→`, or emojis.  
+**Fix:** This is already handled in `start_verora.py` via `sys.stdout.reconfigure(encoding='utf-8')`. If you still encounter it in standalone scripts, add these lines at the top:
+```python
+import sys
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+```
+
+### `health resp: ... dial tcp 127.0.0.1:XXXXX: connectex: A connection attempt failed...`
+**Cause:** The Chrome browser instance managed by PinchTab crashed or became unresponsive (often from rapid start/stop cycles during development).  
+**Fix:**
+1. Kill all zombie Chrome processes: `Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -Force`
+2. Restart the PinchTab server: `Ctrl+C` in the PinchTab terminal, then `pinchtab server` again.
+3. Restart Verora: `uv run start_verora.py`
+
+### Browser opens old tabs from previous sessions (e.g. Wikipedia)
+**Cause:** PinchTab uses a persistent Chrome profile (`default`). Chrome's "Continue where you left off" feature restores tabs from the last session.  
+**Fix:** This is cosmetic — Verora will open her own tab and interact with it correctly. You can manually close the old tabs, or disable "Continue where you left off" in Chrome settings within the PinchTab profile.
+
+### `Oops! I hit an error.` on the overlay with no details
+**Cause:** An unhandled exception occurred inside the voice processing loop. Common causes include network timeouts (Ollama not running), encoding errors, or PinchTab connection issues.  
+**Fix:** Check the terminal where `uv run start_verora.py` is running — the full traceback is printed there with `[Error] Something crashed while processing voice: ...`. Fix the underlying issue based on that message.
+
+### Ollama model not found
+**Cause:** The `qwen3.5-verora` model hasn't been pulled or created in Ollama.  
+**Fix:** Pull or create the model:
+```powershell
+ollama pull qwen3:4b
+# Then create your custom model with your Modelfile
+ollama create qwen3.5-verora -f Modelfile
+```
+
+### PinchTab instance stuck in "starting" state
+**Cause:** A previous Chrome instance didn't shut down cleanly, blocking the new one from starting.  
+**Fix:** Same as the zombie Chrome fix above — kill all Chrome processes and restart the PinchTab server.
