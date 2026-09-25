@@ -16,7 +16,6 @@ from tools.send_message import send_message
 from tools.write_code_file import write_code_file
 from tools.login_to_site import login_to_site
 from tools.update_scratchpad import update_scratchpad
-from tools.update_memory import update_memory
 
 # PinchTab browser tools (replaces Playwright)
 from tools.open_browser_tab import open_browser_tab
@@ -26,7 +25,10 @@ from tools.web_search import web_search
 from tools.crawl_page import crawl_page
 from tools.extract_from_page import extract_from_page
 from tools.crawl_docs import crawl_docs
-
+from tools.memory_semantic import save_memory, recall_memory
+from tools.memory_episodic import log_episode, recall_episodes
+from tools.memory_entity import upsert_entity, query_entity
+from tools.tasks_and_calendar import add_task, list_tasks, complete_task
 
 
 
@@ -39,10 +41,13 @@ llm = ChatOllama(model="qwen3.5-verora")
 #capture_and_read_screen,run_command
 READ_ONLY_TOOLS = [
     read_file, tail_log, search_codebase, close_overlay, open_app,
-    update_memory, update_scratchpad,capture_and_read_screen,
+    update_scratchpad,capture_and_read_screen,
     web_search, crawl_page, extract_from_page,
     # PinchTab browser tools — no confirmation needed for these
-    open_browser_tab, get_page_snapshot, browser_action
+    open_browser_tab, get_page_snapshot, browser_action,
+    # New memory tools
+    save_memory, recall_memory, log_episode, recall_episodes,
+    upsert_entity, query_entity, add_task, list_tasks, complete_task
 ]
 CONFIRMATION_TOOLS = [send_message, write_code_file, login_to_site,run_command,crawl_docs]
 
@@ -79,16 +84,9 @@ def ask_with_pruning(question: str, history: list = None, max_history: int = 10)
     to prevent prompt-size bloat during long sessions.
     """
     history = history or []
-    # keep only the last N messages
-    trimmed_history = history[-max_history:]  
+    # Keep only the last N messages (strictly limit the number of messages to prevent bloat)
+    trimmed_history = history[-max_history:]
     
-    # Read her permanent long-term memory
-    try:
-        with open("long_term_memory.txt", "r", encoding="utf-8") as f:
-            permanent_memory = f.read().strip()
-    except Exception:
-        permanent_memory = "No memories yet."
-        
     # Read her short-term task scratchpad
     try:
         with open("scratchpad.txt", "r", encoding="utf-8") as f:
@@ -145,6 +143,12 @@ def ask_with_pruning(question: str, history: list = None, max_history: int = 10)
         "   Only use this when crawl_page returns too much text or too little useful content.\n"
         "   Example: extract_from_page(url='https://docs.python.org/3/whatsnew.html', question='What is new in Python 3.13?')\n\n"
         "4. crawl_docs(urls, question) — Extract answers spanning MULTIPLE pages. Requires confirmation.\n\n"
+        
+        "CRITICAL RESPONSE FORMAT: You MUST keep spoken responses extremely short.\n"
+        "If your answer is long, put a 1-2 sentence summary inside <speak>...</speak> tags. ONLY the text inside these tags will be spoken aloud.\n"
+        "Put the full detailed information OUTSIDE the tags (it will be displayed silently on a translucent black screen).\n"
+        "Example: <speak>I found the weather for New York.</speak> The current temp is 75F, sunny, humidity 45%...\n\n"
+
         "CRITICAL: Do NOT answer questions about current events, versions, or live data from memory alone.\n"
         "          ALWAYS use web_search or crawl_page to ground your answer in real, fresh data.\n\n"
 
@@ -155,14 +159,9 @@ def ask_with_pruning(question: str, history: list = None, max_history: int = 10)
         "- To open native apps (notepad, calc): use open_app. NEVER for websites.\n"
         "- To log into a site: use login_to_site(login_url, site_name)\n"
         "  Example: login_to_site(login_url='https://github.com/login', site_name='github')\n"
-        "- To save important facts permanently: use update_memory(fact)\n"
+        "- To save important facts permanently: use save_memory(fact). To retrieve them, use recall_memory(query).\n"
         "- To track your current task progress: use update_scratchpad(status)\n\n"
 
-        "==================================================\n"
-        "PERMANENT LONG-TERM MEMORY\n"
-        "==================================================\n"
-        "Here are facts and lessons you have learned in the past. NEVER FORGET THESE:\n"
-        f"{permanent_memory}\n\n"
         "==================================================\n"
         "CURRENT TASK SCRATCHPAD\n"
         "==================================================\n"
@@ -174,8 +173,43 @@ def ask_with_pruning(question: str, history: list = None, max_history: int = 10)
     system_prompt = {"role": "system", "content": system_instruction}
     messages = [system_prompt] + trimmed_history + [{"role": "user", "content": question}]
     
-    # Invoke the agent
-    result = agent.invoke({"messages": messages})
+    from agent.overlay import signals
     
-    # Return the new history and the final answer
-    return result["messages"], result["messages"][-1].content
+    # Invoke the agent via stream to show live status
+    final_messages = None
+    for event in agent.stream({"messages": messages}, stream_mode="values"):
+        final_messages = event["messages"]
+        last_msg = final_messages[-1]
+        
+        if last_msg.type == "ai":
+            if getattr(last_msg, "tool_calls", None):
+                tool_names = ", ".join([tc["name"] for tc in last_msg.tool_calls])
+                signals.update_signal.emit(f"Using {tool_names}...")
+            else:
+                signals.update_signal.emit("Thinking...")
+        elif last_msg.type == "tool":
+            signals.update_signal.emit("Processing results...")
+            
+    # Find the final AI text response (walk backwards past tool messages)
+    import re
+    final_answer = ""
+    for msg in reversed(final_messages):
+        if msg.type == "ai" and msg.content:
+            raw = msg.content
+            print(f"[Graph] Raw AI message content: {raw[:500]}")
+            
+            # Strip Qwen3 <think> reasoning (REMOVE — this is internal thought)
+            raw = re.sub(r'<think>.*?</think>', '', raw, flags=re.DOTALL)
+            # Handle unclosed <think> tag (model was cut off mid-thought)
+            raw = re.sub(r'<think>.*', '', raw, flags=re.DOTALL)
+            
+            # Strip special tokens like <|im_end|>
+            raw = re.sub(r'<\|.*?\|>', '', raw)
+            raw = raw.strip()
+            
+            if raw:
+                final_answer = raw
+                break
+    
+    print(f"[Graph] Final answer extracted ({len(final_answer)} chars): {final_answer[:300]}")
+    return final_messages, final_answer

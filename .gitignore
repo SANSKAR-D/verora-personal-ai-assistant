@@ -6,3 +6,5 @@ temp_audio
 temp_screenshots
 .env
 long_term_memory.txt
+*.db
+chat_history.json

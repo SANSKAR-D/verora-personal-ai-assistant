@@ -16,6 +16,7 @@ class OverlaySignals(QObject):
     show_signal = pyqtSignal()
     hide_signal = pyqtSignal()
     update_signal = pyqtSignal(str)
+    large_text_signal = pyqtSignal(str)
 signals = OverlaySignals()
 
 # ──────────────────────────────────────────────
@@ -252,6 +253,19 @@ class VeroraOverlay(QWidget):
         self._drag_pos = None
         event.accept()
 
+    def show_large_text(self, text: str):
+        try:
+            print(f"[Overlay] show_large_text called with {len(text)} chars")
+            if not hasattr(self, '_large_overlay'):
+                self._large_overlay = LargeTextOverlay()
+            self._large_overlay.show_text(text)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"[Overlay] ERROR in show_large_text: {e}")
+
+
+
     # ── UI init ──────────────────────────────
 
     def init_ui(self):
@@ -370,3 +384,112 @@ def run_overlay():
 
 if __name__ == "__main__":
     run_overlay()
+
+from PyQt6.QtWidgets import QTextBrowser, QPushButton
+
+class LargeTextOverlay(QWidget):
+    """A translucent black screen for displaying large AI responses with streaming Markdown."""
+    def __init__(self):
+        super().__init__()
+        self.setWindowFlags(
+            Qt.WindowType.WindowStaysOnTopHint |
+            Qt.WindowType.FramelessWindowHint |
+            Qt.WindowType.Tool
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        
+        screen = QApplication.primaryScreen().geometry()
+        self.resize(int(screen.width() * 0.5), int(screen.height() * 0.7))
+        self.move(int(screen.width() * 0.25), int(screen.height() * 0.15))
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(40, 40, 40, 40)
+        
+        # Add a close button at the top right
+        top_layout = QHBoxLayout()
+        top_layout.addStretch()
+        self.close_btn = QPushButton("Close (X)")
+        self.close_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(200, 50, 50, 150);
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 8px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: rgba(200, 50, 50, 255);
+            }
+        """)
+        self.close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.close_btn.clicked.connect(self._close_overlay)
+        top_layout.addWidget(self.close_btn)
+        layout.addLayout(top_layout)
+        
+        self.text_browser = QTextBrowser()
+        self.text_browser.setOpenExternalLinks(True)
+        self.text_browser.setStyleSheet("""
+            QTextBrowser {
+                background-color: transparent;
+                color: rgba(230, 230, 250, 240);
+                font-size: 16px;
+                font-family: 'Segoe UI', sans-serif;
+                border: none;
+            }
+        """)
+        layout.addWidget(self.text_browser)
+        
+        # Streaming setup
+        self._full_text = ""
+        self._current_char_idx = 0
+        self._stream_timer = QTimer(self)
+        self._stream_timer.timeout.connect(self._stream_tick)
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        path = QPainterPath()
+        path.addRoundedRect(QRectF(0, 0, self.width(), self.height()), 16, 16)
+        p.setBrush(QBrush(QColor(10, 12, 20, 230))) # Translucent black
+        p.setPen(QPen(QColor(120, 80, 200, 80), 1.5))
+        p.drawPath(path)
+
+    def show_text(self, text: str):
+        print(f"[LargeTextOverlay] show_text called, showing window...")
+        self._full_text = text
+        self._current_char_idx = 0
+        self.text_browser.setHtml("")
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        # Start streaming 15 chars per tick (~60fps)
+        self._stream_timer.start(16)
+        print(f"[LargeTextOverlay] Window visible: {self.isVisible()}")
+
+    def _stream_tick(self):
+        import markdown
+        if self._current_char_idx >= len(self._full_text):
+            self._stream_timer.stop()
+            html = markdown.markdown(self._full_text, extensions=['extra'])
+            self.text_browser.setHtml(html)
+            return
+            
+        self._current_char_idx += 15  # Speed of streaming
+        if self._current_char_idx > len(self._full_text):
+            self._current_char_idx = len(self._full_text)
+            
+        partial_text = self._full_text[:self._current_char_idx]
+        html = markdown.markdown(partial_text, extensions=['extra'])
+        self.text_browser.setHtml(html)
+        # Scroll to bottom while streaming
+        scroll = self.text_browser.verticalScrollBar()
+        scroll.setValue(scroll.maximum())
+
+    def _close_overlay(self):
+        self.hide()
+        self._stream_timer.stop()
+
+    def mousePressEvent(self, event):
+        self._close_overlay()
+        event.accept()

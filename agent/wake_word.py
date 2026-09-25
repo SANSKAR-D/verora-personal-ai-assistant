@@ -8,6 +8,7 @@ from state_store.state import store
 from tools.transcribe_speech import transcribe_speech
 from tools.speak import speak
 from agent.graph import ask_with_pruning
+from tools.chat_history import load_chat_history, save_chat_history
 
 oww_model = Model(
     # wakeword_models=["hey_jarvis"],
@@ -15,7 +16,7 @@ oww_model = Model(
     inference_framework="onnx"
 ) 
 
-chat_history = []
+chat_history = load_chat_history()
 is_busy = False
 
 def on_wake_word_detected():
@@ -23,36 +24,83 @@ def on_wake_word_detected():
     
     try:
         signals.show_signal.emit()
-        
-        # Turn the switch ON
         store.update("overlay_open", True)
         
-        # Keep having a conversation until the switch is flipped OFF
-        while store.get("overlay_open"):
-            signals.update_signal.emit("Listening...")
-
-            question = transcribe_speech(duration=5)
+        signals.update_signal.emit("Listening...")
+        question = transcribe_speech(duration=5)
+        
+        if not question.strip():
+            # If no question was asked, tell the user and go back to sleep
+            signals.update_signal.emit("I didn't catch that...")
+            import time
+            time.sleep(1.5)
+            return
             
-            # If you didn't say anything, just loop back and listen again!
-            if not question.strip():
-                continue
-                
-            signals.update_signal.emit(f"You said: {question}")
-            chat_history, answer = ask_with_pruning(question, chat_history, max_history=10)
-            
-            # If she closed the overlay during that answer, the loop will break on the NEXT pass
-            signals.update_signal.emit("Speaking...")
-            speak(answer)
-            
-            # Clear the text after speaking
-            signals.update_signal.emit("")
+        print(f"\n{'='*50}")
+        print(f"[Verora] USER SAID: \"{question}\"")
+        print(f"{'='*50}\n")
+        
+        signals.update_signal.emit(f"You said: {question}")
+        # Keep only the last 4 messages (2 full exchanges) to prevent the AI from drowning in past context
+        chat_history, answer = ask_with_pruning(question, chat_history, max_history=4)
+        save_chat_history(chat_history)
+        
+        # Guard against None or empty answers
+        if not answer:
+            answer = "I processed your request but didn't generate a response."
+        
+        # Strip any leftover XML thinking tags from Qwen3
+        import re
+        # Remove <think> reasoning (internal thought, not for user)
+        answer = re.sub(r'<think>.*?</think>', '', answer, flags=re.DOTALL)
+        answer = re.sub(r'<think>.*', '', answer, flags=re.DOTALL)
+        
+        answer = re.sub(r'<\|.*?\|>', '', answer)
+        answer = answer.strip()
+        
+        if not answer:
+            answer = "Done. I completed your request."
+        
+        print(f"[Verora] Clean answer ({len(answer)} chars): {answer[:200]}...")
+        
+        # Parse spoken vs displayed text
+        import re
+        speak_match = re.search(r'<speak>(.*?)</speak>', answer, re.DOTALL)
+        if speak_match:
+            spoken_text = speak_match.group(1).strip()
+            display_text = answer.replace(speak_match.group(0), '').strip()
+            if not display_text:
+                display_text = spoken_text
+        else:
+            # Fallback if AI forgot tags but generated a huge response
+            if len(answer) > 200:
+                spoken_text = "Here is the detailed information you requested."
+                display_text = answer
+            else:
+                spoken_text = answer
+                display_text = answer
+        # Strip HTML block tags that disable Markdown parsing
+        display_text = re.sub(r'</?(details|summary)>', '', display_text)
+        
+        # Always pop up the big translucent black screen
+        signals.large_text_signal.emit(display_text)
+        
+        signals.update_signal.emit("Speaking...")
+        speak(spoken_text)
+        
+        signals.update_signal.emit("")
             
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"\n[Error] Something crashed while processing voice: {e}")
-        signals.update_signal.emit("Oops! I hit an error.")
+        signals.update_signal.emit(f"Error: {e}")
+        import time
+        time.sleep(3)  # Give user time to read the error
         
     finally:
-        print("[WakeWord] Resetting listener...")
+        print("[WakeWord] Task complete. Returning to sleep...")
+        signals.hide_signal.emit()
         is_busy = False
         store.update("overlay_open", False)
 
