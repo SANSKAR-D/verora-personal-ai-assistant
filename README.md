@@ -10,8 +10,8 @@ Verora is a powerful, voice-activated personal AI assistant with a beautiful hol
 - **Web Search & Scraping**: Searches the live internet via Tavily, reads static pages with BeautifulSoup, and performs targeted LLM-powered extraction via ScrapeGraphAI — all from voice commands.
 - **Dynamic Browser Automation**: Fully integrated with **PinchTab**. Verora can dynamically navigate to any website, visually scan the layout to auto-discover text fields and buttons, and interact with the page (e.g. logging in, searching) without fragile hard-coded selectors.
 - **Background Watchers**: Includes a suite of real-time background monitors (System metrics, File modification watcher, Clipboard watcher) that inject live system context directly into Verora's AI state.
-- **Permanent Memory**: Maintains a `long_term_memory.txt` that she updates to remember important facts about you forever.
-- **Task Management**: Uses a `scratchpad.txt` to keep track of multi-step processes so she never loses her place during complex workflows.
+- **7-Layer Memory System**: Verora features a comprehensive memory architecture that allows her to remember facts, entities, past episodes, procedures, semantic knowledge, and upcoming tasks across sessions.
+- **Task & Calendar Management**: Manages multi-step processes and scheduling so she never loses her place during complex workflows.
 
 ## 🚀 Setup & Installation
 
@@ -88,7 +88,7 @@ uv run start_verora.py
 - `agent/`: Contains the core AI logic.
   - `graph.py`: LangChain setup, system prompts, and tool bindings.
   - `wake_word.py`: Microphone stream processing using `openwakeword`.
-  - `overlay.py`: The beautiful PyQt6 holographic UI implementation.
+  - `overlay.py`: The beautiful PyQt6 holographic UI implementation with Python Markdown rendering.
 - `tools/`: The capabilities Verora has access to.
   - `web_search.py`: Live web search via Tavily API.
   - `crawl_page.py`: Fast static page scraping via BeautifulSoup.
@@ -96,7 +96,13 @@ uv run start_verora.py
   - `crawl_docs.py`: Multi-page documentation crawling.
   - `open_browser_tab.py`, `get_page_snapshot.py`, `browser_action.py`: PinchTab browser automation.
   - `login_to_site.py`: Dynamic website login (auto-discovers form fields).
-  - `update_memory.py`, `update_scratchpad.py`: Persistent memory and task tracking.
+  - **Memory & Task System**:
+    - `chat_history.py`: Short-term conversation context management.
+    - `memory_semantic.py`: General facts and knowledge storage.
+    - `memory_episodic.py`: Chronological logs of past actions and events.
+    - `memory_entity.py`: Relationship and property tracking for specific entities (people, places).
+    - `procedural_memory.py`: Storage of successful workflows and tool usage patterns.
+    - `tasks_and_calendar.py`: To-do lists, reminders, and goal tracking.
 - `watchers/`: Background threads that monitor your PC's CPU/RAM, file changes, and clipboard.
 - `state_store/`: A thread-safe global dictionary that bridges data between the background watchers and the UI.
 - `models/`: Custom wake-word ONNX model (`hey_verora.onnx`).
