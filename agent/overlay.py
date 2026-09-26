@@ -1,6 +1,6 @@
 import sys
 import math
-from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout
+from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QMessageBox, QPushButton, QDialog
 from PyQt6.QtCore import Qt, QTimer, QPointF, QRectF
 from PyQt6.QtCore import Qt, QTimer, QObject, pyqtSignal
 from PyQt6.QtGui import (
@@ -17,6 +17,7 @@ class OverlaySignals(QObject):
     hide_signal = pyqtSignal()
     update_signal = pyqtSignal(str)
     large_text_signal = pyqtSignal(str)
+    prompt_signal = pyqtSignal(str)
 signals = OverlaySignals()
 
 # ──────────────────────────────────────────────
@@ -162,6 +163,126 @@ class HoloOrb(QWidget):
 
 
 # ──────────────────────────────────────────────
+#  Permission Dialog
+# ──────────────────────────────────────────────
+class PermissionDialog(QDialog):
+    def __init__(self, description: str, parent=None):
+        super().__init__(parent)
+        self.setWindowFlags(
+            Qt.WindowType.WindowStaysOnTopHint |
+            Qt.WindowType.FramelessWindowHint |
+            Qt.WindowType.Tool
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setFixedSize(380, 220)
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+        
+        title = QLabel("Permission Required")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("""
+            color: rgba(220, 215, 245, 255);
+            font-size: 16px;
+            font-family: 'Segoe UI', sans-serif;
+            font-weight: 600;
+        """)
+        layout.addWidget(title)
+        
+        desc = QLabel(description)
+        desc.setWordWrap(True)
+        desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        desc.setStyleSheet("""
+            color: rgba(200, 190, 240, 200);
+            font-size: 13px;
+            font-family: 'Segoe UI', sans-serif;
+            line-height: 1.4;
+        """)
+        layout.addWidget(desc)
+        
+        layout.addStretch()
+        
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(16)
+        
+        btn_no = QPushButton("✕ Deny")
+        btn_yes = QPushButton("✓ Allow")
+        
+        btn_no.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_yes.setCursor(Qt.CursorShape.PointingHandCursor)
+        
+        btn_style = """
+            QPushButton {
+                background-color: rgba(120, 80, 200, 30);
+                color: rgba(200, 190, 240, 220);
+                border: 1px solid rgba(120, 80, 200, 60);
+                padding: 8px 0;
+                border-radius: 6px;
+                font-family: 'Segoe UI', sans-serif;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: rgba(140, 100, 220, 60);
+                border: 1px solid rgba(140, 100, 220, 100);
+            }
+            QPushButton:pressed {
+                background-color: rgba(100, 60, 180, 80);
+            }
+        """
+        
+        yes_style = """
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(0, 180, 216, 80), stop:1 rgba(0, 119, 182, 80));
+                color: white;
+                border: 1px solid rgba(0, 180, 216, 120);
+                padding: 8px 0;
+                border-radius: 6px;
+                font-family: 'Segoe UI', sans-serif;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(0, 180, 216, 120), stop:1 rgba(0, 119, 182, 120));
+                border: 1px solid rgba(0, 180, 216, 160);
+            }
+            QPushButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(0, 180, 216, 50), stop:1 rgba(0, 119, 182, 50));
+            }
+        """
+        
+        btn_no.setStyleSheet(btn_style)
+        btn_yes.setStyleSheet(yes_style)
+        
+        btn_no.clicked.connect(self.reject)
+        btn_yes.clicked.connect(self.accept)
+        
+        btn_layout.addWidget(btn_no)
+        btn_layout.addWidget(btn_yes)
+        layout.addLayout(btn_layout)
+
+    def paintEvent(self, _event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = QRectF(0, 0, self.width(), self.height())
+        radius = 16.0
+
+        bg = QLinearGradient(0, 0, 0, self.height())
+        bg.setColorAt(0.0, QColor(22, 14, 52, 250))
+        bg.setColorAt(1.0, QColor(14, 8, 38, 250))
+
+        path = QPainterPath()
+        path.addRoundedRect(rect, radius, radius)
+        p.setBrush(QBrush(bg))
+        
+        border_pen = QPen(QColor(120, 80, 200, 80))
+        border_pen.setWidthF(1.5)
+        p.setPen(border_pen)
+        
+        p.drawPath(path)
+
+# ──────────────────────────────────────────────
 #  Main Overlay
 # ──────────────────────────────────────────────
 class VeroraOverlay(QWidget):
@@ -204,6 +325,8 @@ class VeroraOverlay(QWidget):
     def handle_voice_update(self, text: str):
         if text in ["Listening...", "Speaking..."]:
             self.status_label.setText(text)
+            if text == "Listening...":
+                self.transcript_label.setText("")
         elif text == "":
             self.status_label.setText("Waiting...")
             self.transcript_label.setText("")
@@ -321,6 +444,29 @@ class VeroraOverlay(QWidget):
         """)
         outer.addWidget(self.transcript_label)
 
+        outer.addSpacing(10)
+        self.restart_btn = QPushButton("■")
+        self.restart_btn.setFixedSize(44, 44)
+        self.restart_btn.setStyleSheet("""
+            QPushButton {
+                background: qradialgradient(cx:0.5, cy:0.5, radius:0.6, fx:0.5, fy:0.5, stop:0 rgba(45, 70, 80, 255), stop:1 rgba(22, 40, 45, 255));
+                color: rgba(225, 95, 95, 255);
+                border: 1px solid rgba(15, 30, 35, 200);
+                border-radius: 22px;
+                font-size: 16px;
+            }
+            QPushButton:hover {
+                background: qradialgradient(cx:0.5, cy:0.5, radius:0.6, fx:0.5, fy:0.5, stop:0 rgba(55, 85, 95, 255), stop:1 rgba(26, 48, 55, 255));
+                color: rgba(255, 110, 110, 255);
+            }
+            QPushButton:pressed {
+                background-color: rgba(18, 32, 38, 255);
+            }
+        """)
+        self.restart_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.restart_btn.clicked.connect(self._on_restart_clicked)
+        outer.addWidget(self.restart_btn, alignment=Qt.AlignmentFlag.AlignCenter)
+
         outer.addStretch()
 
         # ── Bottom: Telemetry ──
@@ -332,6 +478,10 @@ class VeroraOverlay(QWidget):
             font-family: 'Segoe UI', sans-serif;
         """)
         outer.addWidget(self.telemetry_label)
+
+    def _on_restart_clicked(self):
+        store.update("cancel_task", True)
+        self.status_label.setText("Restarting...")
 
     # ── Public API ───────────────────────────
 
@@ -359,6 +509,20 @@ class VeroraOverlay(QWidget):
         """Legacy compatibility shim."""
         if status:
             self.status_label.setText(f"Status: {status}")
+
+
+    def show_prompt(self, description: str):
+        dialog = PermissionDialog(description, self)
+        
+        screen = QApplication.primaryScreen().geometry()
+        dialog.move(screen.center().x() - dialog.width() // 2, screen.center().y() - dialog.height() // 2)
+        
+        result = dialog.exec()
+        
+        if result == QDialog.DialogCode.Accepted:
+            store.update("confirmation_result", True)
+        else:
+            store.update("confirmation_result", False)
 
 
 # ──────────────────────────────────────────────

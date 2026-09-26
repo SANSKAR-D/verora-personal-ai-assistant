@@ -3,6 +3,8 @@ from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 from typing import TypedDict, Annotated
 from langchain_ollama import ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI
+from state_store.state import store
 
 # Import tools
 from tools.read_file import read_file
@@ -35,7 +37,9 @@ from tools.tasks_and_calendar import add_task, list_tasks, complete_task
 class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
 
-llm = ChatOllama(model="qwen3.5-verora")
+# LLM Configuration: Comment/Uncomment to switch models
+# llm = ChatOllama(model="qwen3.5-verora")
+llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite")
 
 # --- TOOLS ---
 #capture_and_read_screen,run_command
@@ -84,8 +88,26 @@ def ask_with_pruning(question: str, history: list = None, max_history: int = 10)
     to prevent prompt-size bloat during long sessions.
     """
     history = history or []
-    # Keep only the last N messages (strictly limit the number of messages to prevent bloat)
-    trimmed_history = history[-max_history:]
+    
+    # To prevent strict sequence errors (especially with Gemini), we convert the history
+    # into pure text Human/AI messages, stripping out tool calls and tool responses.
+    from langchain_core.messages import HumanMessage, AIMessage
+    safe_history = []
+    for msg in history:
+        if msg.type == 'human':
+            safe_history.append(HumanMessage(content=msg.content))
+        elif msg.type == 'ai':
+            if msg.content:
+                raw = msg.content
+                if isinstance(raw, list):
+                    text_parts = [p["text"] for p in raw if isinstance(p, dict) and "text" in p]
+                    text_parts += [p for p in raw if isinstance(p, str)]
+                    raw = "".join(text_parts)
+                if str(raw).strip():
+                    safe_history.append(AIMessage(content=str(raw)))
+                    
+    # Keep only the last N text messages (strictly limit the number of messages to prevent bloat)
+    trimmed_history = safe_history[-max_history:]
     
     # Read her short-term task scratchpad
     try:
@@ -97,6 +119,12 @@ def ask_with_pruning(question: str, history: list = None, max_history: int = 10)
     system_instruction = (
         "You are Verora, a highly capable AI assistant running on WINDOWS (not Linux). You MUST process all input as English, and you MUST ONLY reply in English. Never use Hindi.\n"
         "You run on Windows — NEVER use Linux commands (grep, fuser, env, cat, ls). Use Windows equivalents (findstr, tasklist, set, dir, type).\n\n"
+        
+        "==================================================\n"
+        "CRITICAL PRIORITY: FOCUS ON THE LATEST QUESTION\n"
+        "==================================================\n"
+        "Your PRIMARY focus MUST ALWAYS be answering or acting upon the user's LATEST question or command. "
+        "The conversation history is provided ONLY for background context. Do NOT answer old questions or get distracted by the chat history.\n\n"
 
         "==================================================\n"
         "BROWSER AUTOMATION (PinchTab — 3-step workflow)\n"
@@ -171,13 +199,20 @@ def ask_with_pruning(question: str, history: list = None, max_history: int = 10)
     
     # Inject the system prompt with memory and task scratchpad
     system_prompt = {"role": "system", "content": system_instruction}
-    messages = [system_prompt] + trimmed_history + [{"role": "user", "content": question}]
+    
+    # Wrap the user's latest question to ensure the model focuses on it
+    emphasized_question = f"LATEST USER QUESTION / COMMAND:\n{question}\n\n(Remember: Ignore the chat history if it is irrelevant to this new prompt. Focus ONLY on answering this new prompt.)"
+    messages = [system_prompt] + trimmed_history + [{"role": "user", "content": emphasized_question}]
     
     from agent.overlay import signals
     
     # Invoke the agent via stream to show live status
     final_messages = None
     for event in agent.stream({"messages": messages}, stream_mode="values"):
+        if store.get("cancel_task"):
+            store.update("cancel_task", False)
+            return history, "__CANCELLED__"
+            
         final_messages = event["messages"]
         last_msg = final_messages[-1]
         
@@ -196,7 +231,16 @@ def ask_with_pruning(question: str, history: list = None, max_history: int = 10)
     for msg in reversed(final_messages):
         if msg.type == "ai" and msg.content:
             raw = msg.content
-            print(f"[Graph] Raw AI message content: {raw[:500]}")
+            if isinstance(raw, list):
+                text_parts = []
+                for part in raw:
+                    if isinstance(part, dict) and "text" in part:
+                        text_parts.append(part["text"])
+                    elif isinstance(part, str):
+                        text_parts.append(part)
+                raw = "".join(text_parts)
+                
+            print(f"[Graph] Raw AI message content: {str(raw)[:500]}")
             
             # Strip Qwen3 <think> reasoning (REMOVE — this is internal thought)
             raw = re.sub(r'<think>.*?</think>', '', raw, flags=re.DOTALL)

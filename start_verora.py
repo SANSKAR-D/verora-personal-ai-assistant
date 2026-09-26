@@ -31,6 +31,7 @@ if __name__ == "__main__":
     # Map the text updates to our smart handler
     signals.update_signal.connect(overlay.handle_voice_update)
     signals.large_text_signal.connect(overlay.show_large_text)
+    signals.prompt_signal.connect(overlay.show_prompt)
     
     # 4. Start the wake word listener in the background
     print("\n--- All Systems Go! ---")

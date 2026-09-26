@@ -5,10 +5,16 @@ Verora is a powerful, voice-activated personal AI assistant with a beautiful hol
 ## ✨ Features
 
 - **Holographic Orb UI**: A stunning, draggable, glowing PyQt6 interface that runs transparently over your desktop and displays real-time system telemetry and speech transcripts.
+- **Glassmorphic Permission Dialogs**: Custom, frameless, holographic UI cards for requesting permissions—no jarring native OS popups.
+- **Seamless Interruption**: A completely custom "Cancel" mechanism. If Verora mishears you, just click the minimalist stop button—it instantly halts AI reasoning and seamlessly returns to listening without closing the UI.
+- **Non-Blocking Architecture**: Uses threaded execution during heavy AI processing so the microphone, listeners, and UI never freeze.
 - **Local Wake-Word Detection**: Uses `openwakeword` with a custom `hey_verora.onnx` model to constantly listen for her name in the background using minimal CPU.
 - **Local LLM Intelligence**: Powered by Ollama (`qwen3.5-verora`), ensuring your conversations and data stay completely private.
 - **Web Search & Scraping**: Searches the live internet via Tavily, reads static pages with BeautifulSoup, and performs targeted LLM-powered extraction via ScrapeGraphAI — all from voice commands.
 - **Dynamic Browser Automation**: Fully integrated with **PinchTab**. Verora can dynamically navigate to any website, visually scan the layout to auto-discover text fields and buttons, and interact with the page (e.g. logging in, searching) without fragile hard-coded selectors.
+- **Computer Vision & Screen Awareness**: Capable of taking screenshots and using vision models to "see" your screen and answer questions about what is currently visible.
+- **Codebase Indexing & Search**: Built-in RAG capabilities to index entire project directories and semantically search through codebases.
+- **System & Terminal Control**: Full ability to run terminal commands, read/write files, tail logs, and open Windows applications on your behalf.
 - **Background Watchers**: Includes a suite of real-time background monitors (System metrics, File modification watcher, Clipboard watcher) that inject live system context directly into Verora's AI state.
 - **7-Layer Memory System**: Verora features a comprehensive memory architecture that allows her to remember facts, entities, past episodes, procedures, semantic knowledge, and upcoming tasks across sessions.
 - **Task & Calendar Management**: Manages multi-step processes and scheduling so she never loses her place during complex workflows.
@@ -90,17 +96,30 @@ uv run start_verora.py
   - `wake_word.py`: Microphone stream processing using `openwakeword`.
   - `overlay.py`: The beautiful PyQt6 holographic UI implementation with Python Markdown rendering.
 - `tools/`: The capabilities Verora has access to.
-  - `web_search.py`: Live web search via Tavily API.
-  - `crawl_page.py`: Fast static page scraping via BeautifulSoup.
-  - `extract_from_page.py`: Targeted LLM-powered extraction via ScrapeGraphAI.
-  - `crawl_docs.py`: Multi-page documentation crawling.
-  - `open_browser_tab.py`, `get_page_snapshot.py`, `browser_action.py`: PinchTab browser automation.
-  - `login_to_site.py`: Dynamic website login (auto-discovers form fields).
+  - **Web Intelligence**: 
+    - `web_search.py`: Live web search via Tavily API.
+    - `crawl_page.py`: Fast static page scraping via BeautifulSoup.
+    - `extract_from_page.py`: Targeted LLM-powered extraction via ScrapeGraphAI.
+    - `crawl_docs.py`: Multi-page documentation crawling.
+  - **Browser Automation (PinchTab)**:
+    - `pinchtab_manager.py`, `open_browser_tab.py`, `get_page_snapshot.py`, `browser_action.py`: Browser navigation, DOM parsing, and interaction.
+    - `login_to_site.py`: Dynamic website login (auto-discovers form fields).
+  - **Vision & Multimodal**:
+    - `capture_screen.py`, `capture_and_read_screen.py`, `understand_screen.py`: Screen capture and vision model analysis.
+  - **System & File Operations**:
+    - `run_command.py`: Secure execution of OS terminal commands.
+    - `read_file.py`, `write_code_file.py`, `tail_log.py`: Direct file system manipulation and log monitoring.
+    - `open_app.py`: Launches installed Windows applications.
+  - **Codebase Navigation (RAG)**:
+    - `index_codebase.py`, `search_codebase.py`: Embedding-based code indexing and semantic search.
+  - **Voice & Communication**:
+    - `speak.py`, `clean_text_for_speech.py`, `transcribe_speech.py`: TTS/STT pipelines and text sanitization.
+    - `send_message.py`: Notification and message routing.
   - **Memory & Task System**:
-    - `chat_history.py`: Short-term conversation context management.
+    - `chat_history.py`, `update_scratchpad.py`: Short-term context and scratchpad memory.
     - `memory_semantic.py`: General facts and knowledge storage.
     - `memory_episodic.py`: Chronological logs of past actions and events.
-    - `memory_entity.py`: Relationship and property tracking for specific entities (people, places).
+    - `memory_entity.py`: Relationship and property tracking for specific entities.
     - `procedural_memory.py`: Storage of successful workflows and tool usage patterns.
     - `tasks_and_calendar.py`: To-do lists, reminders, and goal tracking.
 - `watchers/`: Background threads that monitor your PC's CPU/RAM, file changes, and clipboard.

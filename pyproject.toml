@@ -9,6 +9,7 @@ dependencies = [
     "chromadb>=1.5.9",
     "faster-whisper>=1.2.1",
     "keyring>=25.7.0",
+    "langchain-google-genai>=4.4.0",
     "langchain-ollama>=1.1.0",
     "langgraph>=1.2.11",
     "markdown>=3.10.3",
