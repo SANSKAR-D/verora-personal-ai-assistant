@@ -2,7 +2,7 @@
 
 Verora is a powerful, voice-activated personal AI assistant with a beautiful holographic overlay UI. Running entirely locally on your Windows machine via Ollama, she is capable of actively listening to you, speaking back naturally, remembering facts across sessions, taking notes, searching the web, and seamlessly controlling your browser via PinchTab.
 
-https://github.com/SANSKAR-D/verora-personal-ai-assistant/raw/main/public/demo-video.mp4
+<video src="https://github.com/user-attachments/assets/820b1424-cf7c-4ade-bcae-720953e76287" controls width="100%"></video>
 
 ## ✨ Features
 
