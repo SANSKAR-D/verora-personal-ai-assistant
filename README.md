@@ -2,7 +2,7 @@
 
 Verora is a powerful, voice-activated personal AI assistant with a beautiful holographic overlay UI. Running entirely locally on your Windows machine via Ollama, she is capable of actively listening to you, speaking back naturally, remembering facts across sessions, taking notes, searching the web, and seamlessly controlling your browser via PinchTab.
 
-<video src="public/demo-video.mp4" controls width="100%"></video>
+https://github.com/SANSKAR-D/verora-personal-ai-assistant/raw/main/public/demo-video.mp4
 
 ## ✨ Features
 
@@ -94,7 +94,7 @@ uv run start_verora.py
 
 ## 📁 Architecture
 
-![Backend Architecture](public/backend.gif)
+![Backend Architecture](https://raw.githubusercontent.com/SANSKAR-D/verora-personal-ai-assistant/main/public/backend.gif)
 
 - `start_verora.py`: Main entry point. Starts the UI, watchers, and wake word listener.
 - `agent/`: Contains the core AI logic.
@@ -102,10 +102,10 @@ uv run start_verora.py
   - `wake_word.py`: Microphone stream processing using `openwakeword`.
   - `overlay.py`: The beautiful PyQt6 holographic UI implementation with Python Markdown rendering.
     
-    ![UI Architecture](public/ui.gif)
+    ![UI Architecture](https://raw.githubusercontent.com/SANSKAR-D/verora-personal-ai-assistant/main/public/ui.gif)
 - `tools/`: The capabilities Verora has access to.
   
-  ![Tools & External Interaction Architecture](public/external_nodes_interaction_or_tools.gif)
+  ![Tools & External Interaction Architecture](https://raw.githubusercontent.com/SANSKAR-D/verora-personal-ai-assistant/main/public/external_nodes_interaction_or_tools.gif)
   - **Web Intelligence**: 
     - `web_search.py`: Live web search via Tavily API.
     - `crawl_page.py`: Fast static page scraping via BeautifulSoup.
@@ -127,7 +127,7 @@ uv run start_verora.py
     - `send_message.py`: Notification and message routing.
   - **Memory & Task System**:
     
-    ![Memory & Database Architecture](public/db.gif)
+    ![Memory & Database Architecture](https://raw.githubusercontent.com/SANSKAR-D/verora-personal-ai-assistant/main/public/db.gif)
     - `chat_history.py`, `update_scratchpad.py`: Short-term context and scratchpad memory.
     - `memory_semantic.py`: General facts and knowledge storage.
     - `memory_episodic.py`: Chronological logs of past actions and events.
