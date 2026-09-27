@@ -2,6 +2,8 @@
 
 Verora is a powerful, voice-activated personal AI assistant with a beautiful holographic overlay UI. Running entirely locally on your Windows machine via Ollama, she is capable of actively listening to you, speaking back naturally, remembering facts across sessions, taking notes, searching the web, and seamlessly controlling your browser via PinchTab.
 
+<video src="public/demo-video.mp4" controls width="100%"></video>
+
 ## ✨ Features
 
 - **Holographic Orb UI**: A stunning, draggable, glowing PyQt6 interface that runs transparently over your desktop and displays real-time system telemetry and speech transcripts.
@@ -91,12 +93,19 @@ uv run start_verora.py
    - *"Hey Verora, open Notepad."*
 
 ## 📁 Architecture
+
+![Backend Architecture](public/backend.gif)
+
 - `start_verora.py`: Main entry point. Starts the UI, watchers, and wake word listener.
 - `agent/`: Contains the core AI logic.
   - `graph.py`: LangChain setup, system prompts, and tool bindings.
   - `wake_word.py`: Microphone stream processing using `openwakeword`.
   - `overlay.py`: The beautiful PyQt6 holographic UI implementation with Python Markdown rendering.
+    
+    ![UI Architecture](public/ui.gif)
 - `tools/`: The capabilities Verora has access to.
+  
+  ![Tools & External Interaction Architecture](public/external_nodes_interaction_or_tools.gif)
   - **Web Intelligence**: 
     - `web_search.py`: Live web search via Tavily API.
     - `crawl_page.py`: Fast static page scraping via BeautifulSoup.
@@ -117,6 +126,8 @@ uv run start_verora.py
     - `speak.py`, `clean_text_for_speech.py`, `transcribe_speech.py`: TTS/STT pipelines and text sanitization.
     - `send_message.py`: Notification and message routing.
   - **Memory & Task System**:
+    
+    ![Memory & Database Architecture](public/db.gif)
     - `chat_history.py`, `update_scratchpad.py`: Short-term context and scratchpad memory.
     - `memory_semantic.py`: General facts and knowledge storage.
     - `memory_episodic.py`: Chronological logs of past actions and events.
@@ -169,3 +180,13 @@ ollama create qwen3.5-verora -f Modelfile
 ### PinchTab instance stuck in "starting" state
 **Cause:** A previous Chrome instance didn't shut down cleanly, blocking the new one from starting.  
 **Fix:** Same as the zombie Chrome fix above — kill all Chrome processes and restart the PinchTab server.
+
+### Verora wake word not working / not detected
+**Cause:** The custom `hey_verora` wake word model might not trigger reliably for certain microphone or accent setups.  
+**Fix:** You can fall back to using the default `hey_jarvis` wake word model which is built into `openwakeword` and generally more robust. To do this, open `agent/wake_word.py` and change the `wakeword_models` list initialization to use `"hey_jarvis"` instead of the custom `hey_verora.onnx` model path:
+```python
+oww_model = Model(
+    wakeword_models=["hey_jarvis"],
+    inference_framework="onnx"
+) 
+```

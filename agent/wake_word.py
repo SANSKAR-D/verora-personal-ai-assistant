@@ -11,8 +11,8 @@ from agent.graph import ask_with_pruning
 from tools.chat_history import load_chat_history, save_chat_history
 
 oww_model = Model(
-    wakeword_models=["hey_jarvis"],
-    # wakeword_models=["./models/hey_verora.onnx"],
+    # wakeword_models=["hey_jarvis"],
+    wakeword_models=["./models/hey_verora.onnx"],
     inference_framework="onnx"
 ) 
 
