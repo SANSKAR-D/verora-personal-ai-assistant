@@ -9,7 +9,7 @@ Verora is a powerful, voice-activated personal AI assistant with a beautiful hol
 - **Seamless Interruption**: A completely custom "Cancel" mechanism. If Verora mishears you, just click the minimalist stop button—it instantly halts AI reasoning and seamlessly returns to listening without closing the UI.
 - **Non-Blocking Architecture**: Uses threaded execution during heavy AI processing so the microphone, listeners, and UI never freeze.
 - **Local Wake-Word Detection**: Uses `openwakeword` with a custom `hey_verora.onnx` model to constantly listen for her name in the background using minimal CPU.
-- **Local LLM Intelligence**: Powered by Ollama (`qwen3.5-verora`), ensuring your conversations and data stay completely private.
+- **Local LLM Intelligence**: Powered by Ollama (`qwen3.5-verora`), ensuring your conversations and data stay completely private. You can also use cloud APIs if local models are not runnable on your device.
 - **Web Search & Scraping**: Searches the live internet via Tavily, reads static pages with BeautifulSoup, and performs targeted LLM-powered extraction via ScrapeGraphAI — all from voice commands.
 - **Dynamic Browser Automation**: Fully integrated with **PinchTab**. Verora can dynamically navigate to any website, visually scan the layout to auto-discover text fields and buttons, and interact with the page (e.g. logging in, searching) without fragile hard-coded selectors.
 - **Computer Vision & Screen Awareness**: Capable of taking screenshots and using vision models to "see" your screen and answer questions about what is currently visible.
@@ -23,7 +23,7 @@ Verora is a powerful, voice-activated personal AI assistant with a beautiful hol
 
 ### 1. Prerequisites
 - **Python 3.11+**
-- **Ollama** installed with the `qwen3.5-verora` model pulled.
+- **Ollama** installed with the `qwen3.5-verora` model pulled. *(Note: If your device cannot run local models, you can also configure the agent to use an API like OpenAI or Gemini instead.)*
 - **uv** package manager installed (`pip install uv`).
 - **PinchTab** installed globally for browser automation.
 
@@ -71,6 +71,7 @@ Before Verora can control your browser, she needs the PinchTab server running in
 ```powershell
 pinchtab server
 ```
+> **Tip:** You can configure `pinchtab server` to run on Windows startup so you don't have to launch it manually. Press `Win + R`, type `shell:startup`, and add a shortcut to a batch file that runs `pinchtab server`.
 
 ### Start Verora
 In a **new** terminal, launch the Verora agent:

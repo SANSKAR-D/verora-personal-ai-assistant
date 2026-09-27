@@ -74,10 +74,27 @@ def get_instance_id() -> str:
 
 def get_tab_id() -> str:
     """Returns the current tab ID."""
-    return _tab_id
+    global _tab_id
+    if _tab_id:
+        return _tab_id
+    try:
+        tab_file = os.path.join(os.path.dirname(__file__), ".tab_id")
+        if os.path.exists(tab_file):
+            with open(tab_file, "r") as f:
+                _tab_id = f.read().strip()
+                return _tab_id
+    except Exception:
+        pass
+    return None
 
 
 def set_tab_id(tab_id: str):
     """Sets the current tab ID (called by open_browser_tab)."""
     global _tab_id
     _tab_id = tab_id
+    try:
+        tab_file = os.path.join(os.path.dirname(__file__), ".tab_id")
+        with open(tab_file, "w") as f:
+            f.write(tab_id)
+    except Exception:
+        pass

@@ -37,9 +37,9 @@ from tools.tasks_and_calendar import add_task, list_tasks, complete_task
 class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
 
-# LLM Configuration: Comment/Uncomment to switch models
-# llm = ChatOllama(model="qwen3.5-verora")
-llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite")
+# LLM Configuration: Comment/Uncomment to switch models if local model is not running on your system
+llm = ChatOllama(model="qwen3.5-verora")
+# llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite")
 
 # --- TOOLS ---
 #capture_and_read_screen,run_command

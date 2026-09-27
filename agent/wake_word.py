@@ -28,7 +28,7 @@ def on_wake_word_detected():
             store.update("overlay_open", True)
             
             signals.update_signal.emit("Listening...")
-            question = transcribe_speech(duration=5)
+            question = transcribe_speech(duration=8)
             
             if not question.strip():
                 # If no question was asked, tell the user and go back to sleep

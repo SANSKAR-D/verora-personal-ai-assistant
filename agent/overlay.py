@@ -631,11 +631,20 @@ class LargeTextOverlay(QWidget):
         self._stream_timer.start(16)
         print(f"[LargeTextOverlay] Window visible: {self.isVisible()}")
 
-    def _stream_tick(self):
+    def _render_markdown(self, text: str) -> str:
         import markdown
+        import re
+        # Python-Markdown requires an empty line before lists to parse them properly.
+        # AI often outputs single newlines before lists. This regex adds the empty line.
+        text = re.sub(r'([^\n])\n(\s*[-*+]\s+)', r'\1\n\n\2', text)
+        text = re.sub(r'([^\n])\n(\s*\d+\.\s+)', r'\1\n\n\2', text)
+        # Use nl2br so single newlines in regular text are preserved as <br>
+        return markdown.markdown(text, extensions=['extra', 'nl2br', 'sane_lists'])
+
+    def _stream_tick(self):
         if self._current_char_idx >= len(self._full_text):
             self._stream_timer.stop()
-            html = markdown.markdown(self._full_text, extensions=['extra'])
+            html = self._render_markdown(self._full_text)
             self.text_browser.setHtml(html)
             return
             
@@ -644,7 +653,7 @@ class LargeTextOverlay(QWidget):
             self._current_char_idx = len(self._full_text)
             
         partial_text = self._full_text[:self._current_char_idx]
-        html = markdown.markdown(partial_text, extensions=['extra'])
+        html = self._render_markdown(partial_text)
         self.text_browser.setHtml(html)
         # Scroll to bottom while streaming
         scroll = self.text_browser.verticalScrollBar()
